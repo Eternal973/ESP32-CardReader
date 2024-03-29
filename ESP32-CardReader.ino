@@ -6,43 +6,12 @@ void setup() {
   pinMode(SW1_MODE, INPUT_PULLUP);  // Switch mode
   pinMode(SW3_CARD, INPUT_PULLUP);  // Hardcode mifare
   pinMode(SW4_FW, INPUT_PULLUP);    // (Aime) Baudrate & fw/hw | (Spice) 1P 2P
-  u8g2.begin();
-  u8g2.setFont(u8g2_font_6x12_mf);
-  u8g2.clearBuffer();
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, 8);
   FastLED.setBrightness(20);  // LED brightness
   FastLED.showColor(0);
 
-#ifdef OTA_Enable                  // update check
-  pinMode(SW2_OTA, INPUT_PULLUP);  // Enable OTA
-  if (!digitalRead(SW2_OTA)) {
-    WiFi.begin(STASSID, STAPASS);
-    u8g2.drawStr(0, 28, "WiFi Connecting...");
-    u8g2.sendBuffer();
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(100);
-    };
-    u8g2.drawStr(0, 28, "WiFi connected.          ");
-    u8g2.drawStr(0, 41, "Check update...          ");
-    u8g2.sendBuffer();
-    WiFiClient client;
-    httpUpdate.setLedPin(LED_BUILTIN, LOW);
-    t_httpUpdate_return ret = httpUpdate.update(client, OTA_URL);
-    switch (ret) {
-      case HTTP_UPDATE_FAILED:
-        u8g2.drawStr(0, 41, "Check failed.          ");
-        break;
-      case HTTP_UPDATE_NO_UPDATES:
-        u8g2.drawStr(0, 41, "Already up to date.          ");
-        break;
-    }
-  }
-#endif
-
   nfc.begin();
   while (!nfc.getFirmwareVersion()) {
-    u8g2.drawXBM(95, 0, 16, 16, rf_off);
-    u8g2.sendBuffer();
     FastLED.showColor(0xFF0000);
     delay(500);
     FastLED.showColor(0);
@@ -50,29 +19,22 @@ void setup() {
   }
   nfc.setPassiveActivationRetries(0x10);
   nfc.SAMConfig();
-  u8g2.clearBuffer();
 
   // mode select
   ReaderMode = !digitalRead(SW1_MODE);
   FWSW = !digitalRead(SW4_FW);
   if (ReaderMode) {  // BEMANI mode
     SerialDevice.begin(115200);
-    u8g2.drawStr(0, 14, "SpiceTools");
-    u8g2.drawStr(117, 64, FWSW ? "2P" : "1P");
     FastLED.showColor(CRGB::Yellow);
     ReaderMain = SpiceToolsReader;
   } else {  // Aime mode
     SerialDevice.begin(FWSW ? 38400 : 115200);
-    u8g2.drawStr(0, 16, "Aime Reader");
-    u8g2.drawStr(105, 64, FWSW ? "LOW" : "HIGH");
-    u8g2.drawStr(0, 64, FWSW ? "TN32MSEC003S" : "837-15396");
     FastLED.showColor(FWSW ? CRGB::Green : CRGB::Blue);
     ReaderMain = AimeCardReader;
   }
 
   memset(req.bytes, 0, sizeof(req.bytes));
   memset(res.bytes, 0, sizeof(res.bytes));
-  u8g2.sendBuffer();
 
   ConnectTime = millis();
   ConnectStatus = true;
@@ -84,12 +46,10 @@ void loop() {
 
   if (ConnectStatus) {
     if ((millis() - ConnectTime) > SleepDelay) {
-      u8g2.sleepOn();
       ConnectStatus = false;
     }
   } else {
     if ((millis() - ConnectTime) < SleepDelay) {
-      u8g2.sleepOff();
       ConnectStatus = true;
     }
   }
@@ -113,16 +73,10 @@ void SpiceToolsReader() {  // Spice mode
   } else {
     return;
   }
-  u8g2.drawXBM(113, 0, 16, 16, card);
-  u8g2.sendBuffer();
   spiceapi::InfoAvs avs_info{};
   if (spiceapi::info_avs(CON, avs_info)) {
     FWSW = !digitalRead(SW4_FW);
     spiceapi::card_insert(CON, FWSW, card_id);
-    u8g2.drawStr(0, 30, card_id);
-    u8g2.drawStr(0, 64, (avs_info.model + ":" + avs_info.dest + avs_info.spec + avs_info.rev + ":" + avs_info.ext).c_str());
-    u8g2.drawStr(117, 64, FWSW ? "2P" : "1P");
-    u8g2.sendBuffer();
     for (int i = 0; i < 8; i++) {
       leds[i] = CRGB::Red;
       leds[7 - i] = CRGB::Blue;
@@ -132,9 +86,6 @@ void SpiceToolsReader() {  // Spice mode
     }
     FastLED.show();
   }
-  u8g2.drawXBM(113, 0, 16, 16, blank);
-  u8g2.drawStr(0, 30, "                ");
-  u8g2.sendBuffer();
   ConnectTime = millis();
 }
 
@@ -196,7 +147,6 @@ void AimeCardReader() {  // Aime mode
     default:
       res_init();
   }
-  u8g2.sendBuffer();
   ConnectTime = millis();
   packet_write();
 }
